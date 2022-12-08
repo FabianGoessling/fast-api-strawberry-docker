@@ -1,0 +1,1 @@
+docker save fast-api-graphql | bzip2 | pv | ssh -i "ec2-docker.pem" ec2-user@ec2-18-194-135-83.eu-central-1.compute.amazonaws.com  docker load

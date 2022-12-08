@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@4.x/css/materialdesignicons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.js"></script>
+    <script src="https://unpkg.com/graphql-ws/umd/graphql-ws.min.js" type="application/javascript"></script>
+    <title>Chat via graphql-ws</title>
+</head>
+
+<body>
+
+    <div id="app">
+        <v-app>
+            <v-row class="ma-4" align="center" justify="center">
+                <v-col xl=6 md=6 xs=12>
+                    <v-card>
+                        <v-card-title>
+                            Chat Log
+                        </v-card-title>
+                        <v-card-text>
+                            <v-divider></v-divider>
+                            <v-timeline>
+                                <v-timeline-item v-for="msg in allMessages" :right="msg.userId === userId?true:false"
+                                    :left="msg.userId === userId?false:true" large>
+
+                                    <template v-slot:icon>
+                                        <v-icon dark>
+                                            mdi-message-outline
+                                        </v-icon>
+                                    </template>
+
+                                    <template v-slot:opposite>
+                                        <span>[[ msg.userName ]]</span><span>([[ msg.userId ]])</span>
+                                    </template>
+
+                                    <v-card class="elevation-2" :color="msg.userId === userId?'primary':'gray'" dark>
+                                        <v-card-text>
+                                            [[ msg.text ]]
+                                        </v-card-text>
+                                    </v-card>
+
+                                </v-timeline-item>
+                            </v-timeline>
+                            <v-text-field hint="Enter your name here" persistent-hint v-model="userName">
+                            </v-text-field>
+                            <v-text-field v-if="!userName==''" hint="Enter your message here" persistent-hint
+                                v-model="message" @keydown.enter="submit">
+                            </v-text-field>
+                        </v-card-text>
+                    </v-card>
+
+                </v-col>
+            </v-row>
+        </v-app>
+    </div>
+</body>
+
+<script>
+
+    function uuidv4() {
+        return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+            (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+        );
+    }
+
+    v = new Vue({
+        delimiters: ['[[', ']]'],
+        el: '#app',
+        vuetify: new Vuetify(),
+        data: {
+            websocket: '',
+            message: '',
+            userId: uuidv4(),
+            userName: '',
+            allMessages: [],
+            roomName: '',
+            roomEntered: false
+        },
+        created() {
+        },
+
+        methods: {
+            submit() {
+                (async () => {
+                    const result = await new Promise((resolve, reject) => {
+                        let result;
+                        client.subscribe(
+                            {
+                                query: 'mutation { sendMessage(message: "' + this.message + '", userName: "' + this.userName + '", userId: "' + this.userId + '") {text, success}}',
+                            },
+                            {
+                                next: (data) => (console.log(data)),
+                                error: reject,
+                                complete: () => resolve(result),
+                            },
+                        );
+                    });
+                })();
+                this.message = ''
+            }
+        }
+    })
+
+    var client_id = Date.now()
+
+    var ws_scheme = window.location.protocol == "https:" ? "wss" : "ws";
+
+    const client = graphqlWs.createClient({
+        url: ws_scheme + '://' +
+            window.location.host + '/graphql',
+        lazy: false, // connect as soon as the page opens
+    });
+
+
+    // Set up subscription to messages
+    (async () => {
+        const onNext = (data) => {
+            if (data) {
+                v.$data.allMessages = data.data.messages.messages
+            }
+        };
+
+        let unsubscribe = () => {
+            /* complete the subscription */
+        };
+
+        await new Promise((resolve, reject) => {
+            unsubscribe = client.subscribe(
+                {
+                    query: `subscription { messages{messages{
+                            text
+                            userId
+                            userName
+                            } }}`,
+                },
+                {
+                    next: onNext,
+                    error: reject,
+                    complete: resolve,
+                },
+            );
+        });
+
+    })()
+
+
+
+
+</script>
+
+
+
+
+</body>
+
+</html>
